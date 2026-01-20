@@ -1,0 +1,12 @@
+[general]
+name=Show/Hide Each Element Panel
+qgisMinimumVersion=3.40
+qgisMaximumVersion=3.99
+description=Adds expandable arrows to layers in the layer panel, allowing users to expand layers to see all features with individual visibility toggles.
+version=1.0
+author=Your Name
+email=your.email@example.com
+about=This plugin extends the QGIS Layers Panel to add expandable feature lists for each vector layer. When a layer's arrow is clicked, it expands to show all features with individual visibility toggles for each feature.
+tags=layer,features,visibility,toggle,panel
+experimental=False
+deprecated=False

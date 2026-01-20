@@ -337,10 +337,25 @@ class FeatureVisibilityToggle:
             self.layer_tree.itemClicked.connect(self.on_layer_selected)
             splitter.addWidget(self.layer_tree)
             
+            # Create container widget for features panel with toggle all button
+            features_container = QWidget()
+            features_layout = QVBoxLayout(features_container)
+            features_layout.setContentsMargins(0, 0, 0, 0)
+            
+            # Toggle all button
+            toggle_all_row = QHBoxLayout()
+            self.toggle_all_btn = QPushButton("Toggle All")
+            self.toggle_all_btn.clicked.connect(self.toggle_all_features)
+            toggle_all_row.addWidget(self.toggle_all_btn)
+            toggle_all_row.addStretch()
+            features_layout.addLayout(toggle_all_row)
+            
             # Create tree widget for features (will be populated when layer is selected)
             self.feature_tree = QTreeWidget()
             self.feature_tree.setHeaderLabel("Features")
-            splitter.addWidget(self.feature_tree)
+            features_layout.addWidget(self.feature_tree)
+            
+            splitter.addWidget(features_container)
             
             # Set initial sizes (50/50 split)
             splitter.setSizes([200, 200])
@@ -442,6 +457,10 @@ class FeatureVisibilityToggle:
             self.feature_tree.clear()
             self.feature_tree.setHeaderLabel(f"Features: {layer.name()}")
             
+            # Disable toggle all button initially
+            if hasattr(self, 'toggle_all_btn'):
+                self.toggle_all_btn.setEnabled(False)
+            
             # Initialize visibility state if needed - get ALL features first
             if layer_id not in self.feature_visibility:
                 self.feature_visibility[layer_id] = {}
@@ -530,6 +549,10 @@ class FeatureVisibilityToggle:
             # Reconnect signal for checkbox changes
             self.feature_tree.itemChanged.connect(self.on_feature_checkbox_changed)
             
+            # Enable toggle all button if there are features
+            if hasattr(self, 'toggle_all_btn'):
+                self.toggle_all_btn.setEnabled(len(features_data) > 0)
+            
             # Update layer visibility based on current state
             self.update_layer_visibility(layer)
         except Exception as e:
@@ -594,6 +617,64 @@ class FeatureVisibilityToggle:
         
         # All filters matched
         return True
+    
+    def toggle_all_features(self):
+        """Toggle all features in the currently selected layer."""
+        try:
+            if not self.feature_tree or not self.current_layer_item:
+                return
+            
+            layer_id = self.current_layer_item.data(0, Qt.UserRole)
+            if not layer_id:
+                return
+            
+            layer = QgsProject.instance().mapLayer(layer_id)
+            if not isinstance(layer, QgsVectorLayer):
+                return
+            
+            # Count checked vs unchecked to determine action
+            checked_count = 0
+            unchecked_count = 0
+            total_items = self.feature_tree.topLevelItemCount()
+            
+            for i in range(total_items):
+                item = self.feature_tree.topLevelItem(i)
+                if item.checkState(0) == Qt.Checked:
+                    checked_count += 1
+                else:
+                    unchecked_count += 1
+            
+            # If more checked than unchecked, uncheck all; otherwise check all
+            new_state = Qt.Unchecked if checked_count > unchecked_count else Qt.Checked
+            
+            # Disconnect signal temporarily to avoid individual updates
+            try:
+                self.feature_tree.itemChanged.disconnect(self.on_feature_checkbox_changed)
+            except:
+                pass
+            
+            # Update all items
+            for i in range(total_items):
+                item = self.feature_tree.topLevelItem(i)
+                item.setCheckState(0, new_state)
+                data = item.data(0, Qt.UserRole)
+                if data:
+                    _, feature_id = data
+                    visible = new_state == Qt.Checked
+                    if layer_id not in self.feature_visibility:
+                        self.feature_visibility[layer_id] = {}
+                    self.feature_visibility[layer_id][feature_id] = visible
+                    self.update_feature_visibility_field(layer, feature_id, visible)
+            
+            # Reconnect signal
+            self.feature_tree.itemChanged.connect(self.on_feature_checkbox_changed)
+            
+            # Update layer visibility
+            self.update_layer_visibility(layer)
+        except Exception as e:
+            print(f"ERROR toggling all features: {e}")
+            import traceback
+            traceback.print_exc()
     
     def on_feature_checkbox_changed(self, item, column):
         """Handle feature checkbox change."""
